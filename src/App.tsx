@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import LandingView from './views/LandingView'
 import RoomView from './views/RoomView'
+import Header from './components/Header'
 import { getOrInitializeUser } from './utils'
 import type { ViewType } from './types'
 
@@ -8,6 +9,29 @@ export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>('landing')
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null)
   
+  // Theme state managed globally at root level
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    const saved = localStorage.getItem('poker_theme')
+    if (saved) {
+      return saved === 'dark'
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
+
+  // Apply theme class to document element
+  useEffect(() => {
+    const root = document.documentElement
+    if (isDark) {
+      root.classList.add('dark')
+      localStorage.setItem('poker_theme', 'dark')
+    } else {
+      root.classList.remove('dark')
+      localStorage.setItem('poker_theme', 'light')
+    }
+  }, [isDark])
+
+  const toggleTheme = () => setIsDark(prev => !prev)
+
   // User profile loaded from localStorage/initialized on boot
   const [userSession, setUserSession] = useState<{ userId: string; userName: string }>(() => 
     getOrInitializeUser()
@@ -15,7 +39,6 @@ export default function App() {
 
   // SPA Custom Router logic
   useEffect(() => {
-    // Parse initial path
     const parseUrlRoute = () => {
       const path = window.location.pathname
       const roomMatch = path.match(/^\/room\/([A-Z0-9]{4,6})$/i)
@@ -30,15 +53,12 @@ export default function App() {
       }
     }
 
-    // Parse route on mount
     parseUrlRoute()
 
-    // Listen to browser back/forward buttons
     window.addEventListener('popstate', parseUrlRoute)
     return () => window.removeEventListener('popstate', parseUrlRoute)
   }, [])
 
-  // Navigation Helper
   const navigateTo = (view: ViewType, roomId: string | null = null) => {
     if (view === 'room' && roomId) {
       const cleanId = roomId.toUpperCase()
@@ -52,7 +72,6 @@ export default function App() {
     }
   }
 
-  // Update userName dynamically
   const handleUpdateName = (newName: string) => {
     setUserSession(prev => ({ ...prev, userName: newName }))
   }
@@ -60,13 +79,19 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       {currentView === 'landing' ? (
-        <LandingView
-          initialName={userSession.userName}
-          onJoinRoom={(roomId, name) => {
-            handleUpdateName(name)
-            navigateTo('room', roomId)
-          }}
-        />
+        <>
+          <Header
+            isDark={isDark}
+            onToggleTheme={toggleTheme}
+          />
+          <LandingView
+            initialName={userSession.userName}
+            onJoinRoom={(roomId, name) => {
+              handleUpdateName(name)
+              navigateTo('room', roomId)
+            }}
+          />
+        </>
       ) : (
         activeRoomId && (
           <RoomView
@@ -75,6 +100,8 @@ export default function App() {
             userName={userSession.userName}
             onLeave={() => navigateTo('landing')}
             onChangeName={handleUpdateName}
+            isDark={isDark}
+            onToggleTheme={toggleTheme}
           />
         )
       )}

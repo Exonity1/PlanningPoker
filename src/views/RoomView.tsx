@@ -22,6 +22,8 @@ interface RoomViewProps {
   userName: string
   onLeave: () => void
   onChangeName: (newName: string) => void
+  isDark: boolean
+  onToggleTheme: () => void
 }
 
 const DECK_CARDS = ['1', '2', '3', '5', '8', '13', '21', '?', '☕']
@@ -38,7 +40,9 @@ export default function RoomView({
   userId, 
   userName, 
   onLeave,
-  onChangeName
+  onChangeName,
+  isDark,
+  onToggleTheme
 }: RoomViewProps) {
   const [roomState, setRoomState] = useState<Room | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
@@ -424,6 +428,8 @@ export default function RoomView({
         roomId={roomId} 
         connectionStatus={connectionStatus} 
         onLeave={onLeave} 
+        isDark={isDark}
+        onToggleTheme={onToggleTheme}
       />
 
       {/* Main room board layout */}
@@ -433,53 +439,50 @@ export default function RoomView({
         <div className="flex-1 flex flex-col items-center justify-center py-6 md:py-10">
           
           {/* Main Poker Table Container */}
-          <div className="relative w-full max-w-3xl aspect-[2/1] rounded-[100px] border-8 border-slate-200 dark:border-slate-850 bg-gradient-to-b from-emerald-600 to-emerald-700 dark:from-slate-900 dark:to-slate-950 flex flex-col items-center justify-center shadow-2xl overflow-visible py-8">
-            
-            {/* Table inner ring */}
-            <div className="absolute inset-4 border border-emerald-500/20 dark:border-slate-800/60 rounded-[80px] pointer-events-none" />
+          <div className="relative w-full max-w-3xl aspect-[2/1] rounded-[48px] border border-slate-200/60 dark:border-slate-800/80 bg-slate-100/30 dark:bg-slate-900/30 backdrop-blur-md flex flex-col items-center justify-center shadow-lg overflow-visible py-8">
             
             {/* Table center (revealed stats or waiting status) */}
             <div className="z-15 text-center px-4 max-w-xs transition-all duration-500">
               {roomState?.is_revealed ? (
                 <div className="animate-in zoom-in-95 duration-500 flex flex-col items-center">
-                  <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 dark:bg-slate-800/80 backdrop-blur border border-white/10 text-white text-xs font-semibold mb-2">
-                    <Sparkles className="w-3.5 h-3.5 text-yellow-300" /> Result Revealed
+                  <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-200/40 dark:bg-slate-800/80 backdrop-blur border border-slate-350/20 text-slate-850 dark:text-slate-250 text-xs font-semibold mb-2">
+                    <Sparkles className="w-3.5 h-3.5 text-violet-500 dark:text-violet-400" /> Result Revealed
                   </div>
                   
                   {stats.average !== null ? (
                     <>
-                      <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-100 dark:text-slate-400">
+                      <span className="text-[10px] uppercase font-bold tracking-widest text-slate-450 dark:text-slate-500">
                         Average Vote
                       </span>
-                      <span className="text-5xl font-black tracking-tight text-white mb-2 select-none">
+                      <span className="text-5xl font-black tracking-tight text-slate-900 dark:text-white mb-2 select-none">
                         {stats.average}
                       </span>
                     </>
                   ) : (
-                    <span className="text-base font-semibold text-white/90 mb-3 select-none">
+                    <span className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-3 select-none">
                       Non-numeric Votes Only
                     </span>
                   )}
 
                   {stats.allAgreed && stats.totalVoted > 1 ? (
-                    <div className="text-xs text-yellow-300 font-bold bg-white/15 dark:bg-yellow-500/20 px-3 py-1.5 rounded-xl border border-yellow-400/30 shadow-inner">
+                    <div className="text-xs text-violet-750 dark:text-violet-300 font-bold bg-violet-50 dark:bg-violet-950/40 px-3 py-1.5 rounded-xl border border-violet-200 dark:border-violet-900/40 shadow-sm">
                       🎉 100% Consensus ({stats.consensusValue})
                     </div>
                   ) : stats.totalVoted > 0 ? (
-                    <span className="text-xs text-emerald-100 dark:text-slate-400 font-medium">
-                      Consensus: <strong className="text-white">{stats.consensusPercent}%</strong> ({stats.consensusValue})
+                    <span className="text-xs text-slate-550 dark:text-slate-400 font-medium">
+                      Consensus: <strong className="text-slate-800 dark:text-slate-250">{stats.consensusPercent}%</strong> ({stats.consensusValue})
                     </span>
                   ) : null}
                 </div>
               ) : (
                 <div className="flex flex-col items-center">
-                  <div className="w-12 h-12 rounded-full bg-slate-900/10 dark:bg-slate-850/50 flex items-center justify-center text-emerald-250 dark:text-slate-500 mb-3 animate-pulse">
+                  <div className="w-12 h-12 rounded-full bg-slate-250/50 dark:bg-slate-900/50 flex items-center justify-center text-slate-500 dark:text-slate-450 mb-3 animate-pulse">
                     <Users className="w-6 h-6" />
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-1 select-none">
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1 select-none">
                     Voting in Progress
                   </h3>
-                  <p className="text-xs text-emerald-150 dark:text-slate-400">
+                  <p className="text-xs text-slate-450 dark:text-slate-500">
                     {stats.totalVoted} of {stats.totalParticipants} voted
                   </p>
                 </div>
@@ -547,7 +550,7 @@ export default function RoomView({
               className={`
                 px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow border
                 ${copiedLink 
-                  ? 'bg-emerald-500 border-transparent text-white' 
+                  ? 'bg-violet-600 border-transparent text-white' 
                   : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                 }
               `}

@@ -7,12 +7,16 @@ interface HeaderProps {
   roomId?: string
   connectionStatus?: 'connected' | 'connecting' | 'disconnected'
   onLeave?: () => void
+  isDark: boolean
+  onToggleTheme: () => void
 }
 
 export default function Header({ 
   roomId, 
   connectionStatus = 'connected', 
-  onLeave 
+  onLeave,
+  isDark,
+  onToggleTheme
 }: HeaderProps) {
   const [copied, setCopied] = useState(false)
 
@@ -39,7 +43,7 @@ export default function Header({
           <Users className="w-5 h-5 text-white" />
         </div>
         <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent group-hover:opacity-85 transition-opacity">
-          InstantPoker
+          Planning Poker
         </span>
       </div>
 
@@ -111,7 +115,7 @@ export default function Header({
 
         {/* Theme toggle & leave button */}
         <div className="flex items-center gap-2">
-          <ThemeToggle />
+          <ThemeToggle isDark={isDark} onToggle={onToggleTheme} />
           {onLeave && (
             <button
               onClick={onLeave}

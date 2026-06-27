@@ -1,29 +1,14 @@
-import { useEffect, useState } from 'react'
 import { Sun, Moon } from 'lucide-react'
 
-export default function ThemeToggle() {
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    const saved = localStorage.getItem('poker_theme')
-    if (saved) {
-      return saved === 'dark'
-    }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-  })
+interface ThemeToggleProps {
+  isDark: boolean
+  onToggle: () => void
+}
 
-  useEffect(() => {
-    const root = document.documentElement
-    if (isDark) {
-      root.classList.add('dark')
-      localStorage.setItem('poker_theme', 'dark')
-    } else {
-      root.classList.remove('dark')
-      localStorage.setItem('poker_theme', 'light')
-    }
-  }, [isDark])
-
+export default function ThemeToggle({ isDark, onToggle }: ThemeToggleProps) {
   return (
     <button
-      onClick={() => setIsDark(!isDark)}
+      onClick={onToggle}
       className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-300 shadow-sm cursor-pointer"
       aria-label="Toggle theme"
       id="theme-toggle-btn"
