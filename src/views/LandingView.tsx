@@ -6,11 +6,12 @@ import { generateRoomId, saveUserName } from '../utils'
 interface LandingViewProps {
   onJoinRoom: (roomId: string, name: string) => void
   initialName: string
+  userId: string
 }
 
 type FlowState = 'menu' | 'create' | 'join'
 
-export default function LandingView({ onJoinRoom, initialName }: LandingViewProps) {
+export default function LandingView({ onJoinRoom, initialName, userId }: LandingViewProps) {
   const [flow, setFlow] = useState<FlowState>('menu')
   const [name, setName] = useState(initialName)
   const [roomIdInput, setRoomIdInput] = useState('')
@@ -46,7 +47,7 @@ export default function LandingView({ onJoinRoom, initialName }: LandingViewProp
       try {
         const { error } = await supabase
           .from('rooms')
-          .insert([{ id: generatedId, is_revealed: false }])
+          .insert([{ id: generatedId, is_revealed: false, admin_id: userId }])
         
         if (error) throw error
         onJoinRoom(generatedId, name)

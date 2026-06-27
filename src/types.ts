@@ -9,6 +9,7 @@ export interface Room {
   id: string;
   is_revealed: boolean;
   created_at: string;
+  admin_id?: string;
 }
 
 export type ViewType = 'landing' | 'room';

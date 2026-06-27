@@ -86,6 +86,7 @@ export default function App() {
           />
           <LandingView
             initialName={userSession.userName}
+            userId={userSession.userId}
             onJoinRoom={(roomId, name) => {
               handleUpdateName(name)
               navigateTo('room', roomId)

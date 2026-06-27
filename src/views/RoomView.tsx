@@ -7,8 +7,6 @@ import Header from '../components/Header'
 import { 
   Users, 
   Sparkles, 
-  Share2, 
-  Check, 
   RefreshCw, 
   Eye, 
   Crown,
@@ -54,8 +52,7 @@ export default function RoomView({
   const [inputName, setInputName] = useState(userName)
   const [nameError, setNameError] = useState('')
 
-  // Invite link copied state for the main view
-  const [copiedLink, setCopiedLink] = useState(false)
+
 
   // References for Supabase Channels
   const presenceChannelRef = useRef<any>(null)
@@ -121,7 +118,7 @@ export default function RoomView({
         // Room doesn't exist in DB - auto create it to prevent lock-outs
         const { data: newRoom, error: createError } = await supabase
           .from('rooms')
-          .insert([{ id: roomId, is_revealed: false }])
+          .insert([{ id: roomId, is_revealed: false, admin_id: userId }])
           .select()
           .single()
 
@@ -369,17 +366,7 @@ export default function RoomView({
     setShowNameModal(false)
   }
 
-  // Copy room link helper
-  const handleCopyLink = async () => {
-    const inviteUrl = `${window.location.origin}/room/${roomId}`
-    try {
-      await navigator.clipboard.writeText(inviteUrl)
-      setCopiedLink(true)
-      setTimeout(() => setCopiedLink(false), 2000)
-    } catch (err) {
-      console.error('Clipboard copy error: ', err)
-    }
-  }
+
 
   // Statistics calculation
   const stats = calculateStats(participants)
@@ -422,6 +409,9 @@ export default function RoomView({
   // Check if all active members have voted
   const allParticipantsVoted = participants.length > 0 && participants.every(p => p.vote !== null)
 
+  // Check if current user is the admin
+  const isUserAdmin = isSupabaseConfigured ? roomState?.admin_id === userId : true
+
   return (
     <div className="w-full flex-1 flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-300">
       <Header 
@@ -438,32 +428,7 @@ export default function RoomView({
         {/* Table & Stats Panel */}
         <div className="flex-1 flex flex-col items-center justify-center py-6 md:py-10">
           
-          {/* Copy Invite Link Action Button */}
-          <div className="mb-6 z-20">
-            <button
-              onClick={handleCopyLink}
-              className={`
-                px-5 py-3 rounded-2xl font-bold flex items-center gap-2 cursor-pointer shadow-md transition-all select-none text-sm md:text-base hover:scale-102
-                ${copiedLink 
-                  ? 'bg-emerald-600 text-white' 
-                  : 'bg-violet-600 hover:bg-violet-500 text-white hover:-translate-y-0.5'
-                }
-              `}
-              id="main-copy-invite-btn"
-            >
-              {copiedLink ? (
-                <>
-                  <Check className="w-4 h-4 md:w-5 md:h-5" />
-                  <span>Invite Link Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-4 h-4 md:w-5 md:h-5" />
-                  <span>Copy Invite Link</span>
-                </>
-              )}
-            </button>
-          </div>
+
 
           {/* Main Poker Table Container */}
           <div className="relative w-full max-w-3xl aspect-[2/1] rounded-[48px] border border-slate-200/60 dark:border-slate-800/80 bg-slate-100/30 dark:bg-slate-900/30 backdrop-blur-md flex flex-col items-center justify-center shadow-lg overflow-visible py-8">
@@ -551,8 +516,8 @@ export default function RoomView({
                     />
                     
                     {/* Crown on creator / user avatar indicator */}
-                    {isMe && (
-                      <div className="absolute -top-2.5 -left-2.5 bg-violet-600 text-white p-1 rounded-full shadow-md">
+                    {((isSupabaseConfigured && roomState?.admin_id === p.user_id) || (!isSupabaseConfigured && p.user_id === userId)) && (
+                      <div className="absolute -top-2.5 -left-2.5 bg-violet-600 text-white p-1 rounded-full shadow-md" title="Room Owner">
                         <Crown className="w-3 h-3" />
                       </div>
                     )}
@@ -573,40 +538,60 @@ export default function RoomView({
         </div>
 
         {/* Global actions row (Reveal / Next Round) */}
-        <div className="flex items-center justify-center gap-3 my-6">
-          {!roomState?.is_revealed ? (
-            <button
-              onClick={handleReveal}
-              className={`
-                px-6 py-3.5 rounded-2xl font-bold flex items-center gap-2 cursor-pointer shadow-lg transition-all duration-300 bg-violet-600 hover:bg-violet-500 text-white shadow-violet-200 dark:shadow-none scale-100 hover:scale-102
-                ${allParticipantsVoted ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-slate-950 animate-pulse' : ''}
-              `}
-              id="reveal-cards-btn"
-            >
-              <Eye className="w-5 h-5" />
-              Reveal Cards
-            </button>
-          ) : (
-            <button
-              onClick={handleNextRound}
-              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold flex items-center gap-2 cursor-pointer shadow-lg hover:shadow-xl transition-all scale-100 hover:scale-102"
-              id="next-round-btn"
-            >
-              <RefreshCw className="w-4 h-4 animate-spin-slow" />
-              Next Round
-            </button>
-          )}
-          
-          {selectedVote && !roomState?.is_revealed && (
-            <button
-              onClick={() => handleVote(selectedVote)}
-              className="px-5 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-bold transition-all cursor-pointer shadow"
-              id="clear-vote-btn"
-            >
-              Clear Vote
-            </button>
-          )}
-        </div>
+        {isUserAdmin ? (
+          <div className="flex items-center justify-center gap-3 my-6">
+            {!roomState?.is_revealed ? (
+              <button
+                onClick={handleReveal}
+                className={`
+                  px-6 py-3.5 rounded-2xl font-bold flex items-center gap-2 cursor-pointer shadow-lg transition-all duration-300 bg-violet-600 hover:bg-violet-500 text-white shadow-violet-200 dark:shadow-none scale-100 hover:scale-102
+                  ${allParticipantsVoted ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-slate-950 animate-pulse' : ''}
+                `}
+                id="reveal-cards-btn"
+              >
+                <Eye className="w-5 h-5" />
+                Reveal Cards
+              </button>
+            ) : (
+              <button
+                onClick={handleNextRound}
+                className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold flex items-center gap-2 cursor-pointer shadow-lg hover:shadow-xl transition-all scale-100 hover:scale-102"
+                id="next-round-btn"
+              >
+                <RefreshCw className="w-4 h-4 animate-spin-slow" />
+                Next Round
+              </button>
+            )}
+            
+            {selectedVote && !roomState?.is_revealed && (
+              <button
+                onClick={() => handleVote(selectedVote)}
+                className="px-5 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-bold transition-all cursor-pointer shadow"
+                id="clear-vote-btn"
+              >
+                Clear Vote
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2.5 my-6 select-none">
+            <span className="text-sm font-semibold text-slate-450 dark:text-slate-500 italic">
+              {!roomState?.is_revealed 
+                ? "Waiting for room owner to reveal cards..." 
+                : "Results are revealed! Waiting for owner to start next round..."
+              }
+            </span>
+            {selectedVote && !roomState?.is_revealed && (
+              <button
+                onClick={() => handleVote(selectedVote)}
+                className="px-4 py-2 rounded-xl text-xs border border-slate-200 dark:border-slate-800 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-bold transition-all cursor-pointer shadow"
+                id="clear-vote-btn"
+              >
+                Clear My Vote
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Bottom Panel: Voting Deck */}
         <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-900/60 py-4 px-4 z-40">
