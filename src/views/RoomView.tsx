@@ -617,66 +617,66 @@ export default function RoomView({
 
         </div>
 
-        {/* Global actions row (Reveal / Next Round) */}
-        {isUserAdmin ? (
-          <div className="flex items-center justify-center gap-3 my-6">
-            {!roomState?.is_revealed ? (
-              <button
-                onClick={handleReveal}
-                className={`
-                  px-6 py-3.5 rounded-2xl font-bold flex items-center gap-2 cursor-pointer shadow-lg transition-all duration-300 bg-violet-600 hover:bg-violet-500 text-white shadow-violet-200 dark:shadow-none scale-100 hover:scale-102
-                  ${allParticipantsVoted ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-slate-950 animate-pulse' : ''}
-                `}
-                id="reveal-cards-btn"
-              >
-                <Eye className="w-5 h-5" />
-                Reveal Cards
-              </button>
-            ) : (
-              <button
-                onClick={handleNextRound}
-                className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold flex items-center gap-2 cursor-pointer shadow-lg hover:shadow-xl transition-all scale-100 hover:scale-102"
-                id="next-round-btn"
-              >
-                <RefreshCw className="w-4 h-4 animate-spin-slow" />
-                Next Round
-              </button>
-            )}
-            
-            {selectedVote && !roomState?.is_revealed && (
-              <button
-                onClick={() => handleVote(selectedVote)}
-                className="px-5 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-bold transition-all cursor-pointer shadow"
-                id="clear-vote-btn"
-              >
-                Clear Vote
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center gap-2.5 my-6 select-none">
-            <span className="text-sm font-semibold text-slate-450 dark:text-slate-500 italic">
-              {!roomState?.is_revealed 
-                ? "Waiting for room owner to reveal cards..." 
-                : "Results are revealed! Waiting for owner to start next round..."
-              }
-            </span>
-            {selectedVote && !roomState?.is_revealed && (
-              <button
-                onClick={() => handleVote(selectedVote)}
-                className="px-4 py-2 rounded-xl text-xs border border-slate-200 dark:border-slate-800 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-bold transition-all cursor-pointer shadow"
-                id="clear-vote-btn"
-              >
-                Clear My Vote
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Bottom Panel: Voting Deck */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-900/60 py-4 px-4 z-40">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl border-t border-slate-100 dark:border-slate-900/60 py-4 px-4 z-40">
           <div className="w-full flex flex-col items-center">
             
+            {/* Global actions row (Reveal / Next Round) placed above card deck */}
+            {isUserAdmin ? (
+              <div className="mb-3.5 flex items-center gap-3">
+                {!roomState?.is_revealed ? (
+                  <button
+                    onClick={handleReveal}
+                    className={`
+                      px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 cursor-pointer shadow-md transition-all duration-300 bg-violet-600 hover:bg-violet-500 text-white shadow-violet-200 dark:shadow-none scale-100 hover:scale-102 text-xs md:text-sm
+                      ${allParticipantsVoted ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-slate-950 animate-pulse' : ''}
+                    `}
+                    id="reveal-cards-btn"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Reveal Cards
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleNextRound}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold flex items-center gap-2 cursor-pointer shadow-md hover:shadow-lg transition-all scale-100 hover:scale-102 text-xs md:text-sm"
+                    id="next-round-btn"
+                  >
+                    <RefreshCw className="w-4 h-4 animate-spin-slow" />
+                    Next Round
+                  </button>
+                )}
+                
+                {selectedVote && !roomState?.is_revealed && (
+                  <button
+                    onClick={() => handleVote(selectedVote)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-bold transition-all cursor-pointer shadow text-xs md:text-sm"
+                    id="clear-vote-btn"
+                  >
+                    Clear Vote
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="mb-3 flex items-center gap-3 select-none">
+                <span className="text-xs font-semibold text-slate-450 dark:text-slate-500 italic">
+                  {!roomState?.is_revealed 
+                    ? "Waiting for room owner to reveal cards..." 
+                    : "Results are revealed! Waiting for owner to start next round..."
+                  }
+                </span>
+                {selectedVote && !roomState?.is_revealed && (
+                  <button
+                    onClick={() => handleVote(selectedVote)}
+                    className="px-3 py-1.5 rounded-lg text-[10px] border border-slate-200 dark:border-slate-800 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-bold transition-all cursor-pointer shadow animate-in fade-in"
+                    id="clear-vote-btn"
+                  >
+                    Clear My Vote
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="text-xs font-bold text-slate-455 dark:text-slate-500 uppercase tracking-widest mb-1.5 select-none">
               {roomState?.is_revealed ? 'Estimate locked for this round' : 'Select your estimate'}
             </div>
