@@ -109,6 +109,21 @@ export default function RoomView({
 
       if (data) {
         setRoomState(data)
+        
+        // Auto-claim admin role if the room exists but has no admin assigned (e.g. older sessions)
+        if (!data.admin_id && userId) {
+          try {
+            const { data: updatedRoom } = await supabase
+              .from('rooms')
+              .update({ admin_id: userId })
+              .eq('id', roomId)
+              .select()
+              .single()
+            if (updatedRoom) setRoomState(updatedRoom)
+          } catch (claimErr) {
+            console.error('Error claiming admin role for old room:', claimErr)
+          }
+        }
       } else {
         // Room doesn't exist in DB - auto create it to prevent lock-outs
         const { data: newRoom, error: createError } = await supabase
