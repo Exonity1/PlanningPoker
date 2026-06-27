@@ -52,11 +52,9 @@ export default function RoomView({
   const [inputName, setInputName] = useState(userName)
   const [nameError, setNameError] = useState('')
 
-
-
   // References for Supabase Channels
-  const presenceChannelRef = useRef<any>(null)
   const dbChannelRef = useRef<any>(null)
+  const participantsChannelRef = useRef<any>(null)
 
   // Simulation timers for Demo Mode
   const demoTimersRef = useRef<number[]>([])
@@ -68,7 +66,8 @@ export default function RoomView({
     setRoomState({
       id: roomId,
       is_revealed: false,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      admin_id: userId // Temporary local assumption until fetched
     })
 
     if (isSupabaseConfigured) {
@@ -84,8 +83,8 @@ export default function RoomView({
 
     return () => {
       // Clean up subscriptions
-      if (presenceChannelRef.current) supabase.removeChannel(presenceChannelRef.current)
       if (dbChannelRef.current) supabase.removeChannel(dbChannelRef.current)
+      if (participantsChannelRef.current) supabase.removeChannel(participantsChannelRef.current)
       demoTimersRef.current.forEach(timer => clearTimeout(timer))
     }
   }, [roomId])
@@ -110,10 +109,6 @@ export default function RoomView({
 
       if (data) {
         setRoomState(data)
-        // If room is already revealed, let user know
-        if (data.is_revealed) {
-          // Keep current selection
-        }
       } else {
         // Room doesn't exist in DB - auto create it to prevent lock-outs
         const { data: newRoom, error: createError } = await supabase
@@ -131,107 +126,152 @@ export default function RoomView({
     }
   }
 
-  // Subscribe to DB updates and Presence (ONLY after user name is provided)
+  // Subscribe to DB updates for rooms and participants
   useEffect(() => {
     if (!userName || showNameModal || !roomId) return
 
-    if (isSupabaseConfigured) {
-      // 1. Subscribe to database changes on rooms
-      dbChannelRef.current = supabase
-        .channel(`room_db:${roomId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'rooms',
-            filter: `id=eq.${roomId}`
-          },
-          (payload) => {
-            const nextRoom = payload.new as Room
-            setRoomState(nextRoom)
-            
-            // If transitioned back to voting phase, reset local vote
-            if (!nextRoom.is_revealed) {
-              setSelectedVote(null)
-              updatePresenceVote(null)
-            }
-          }
-        )
-        .subscribe()
+    const setupDatabaseListeners = async () => {
+      if (isSupabaseConfigured) {
+        try {
+          setConnectionStatus('connecting')
 
-      // 2. Subscribe to Presence channel
-      const presenceChannel = supabase.channel(`presence:${roomId}`, {
-        config: {
-          presence: {
-            key: userId,
-          },
-        },
-      })
-
-      presenceChannelRef.current = presenceChannel
-
-      presenceChannel
-        .on('presence', { event: 'sync' }, () => {
-          const state = presenceChannel.presenceState()
-          const list: Participant[] = []
-          
-          Object.keys(state).forEach((key) => {
-            const presences = state[key] as any[]
-            if (presences && presences.length > 0) {
-              list.push({
-                user_id: presences[0].user_id || key,
-                name: presences[0].name || 'Collaborator',
-                vote: presences[0].vote !== undefined ? presences[0].vote : null,
-                online_at: presences[0].online_at
-              })
-            }
-          })
-
-          // Sort participants: user first, then alphabetically
-          list.sort((a, b) => {
-            if (a.user_id === userId) return -1
-            if (b.user_id === userId) return 1
-            return a.name.localeCompare(b.name)
-          })
-
-          setParticipants(list)
-        })
-        .subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-            setConnectionStatus('connected')
-            await presenceChannel.track({
+          // 1. Upsert ourselves in the participants database table
+          const { error: joinError } = await supabase
+            .from('participants')
+            .upsert({
+              id: `${roomId}:${userId}`,
+              room_id: roomId,
               user_id: userId,
               name: userName,
               vote: selectedVote,
-              online_at: new Date().toISOString()
+              updated_at: new Date().toISOString()
             })
-          } else if (status === 'TIMED_OUT' || status === 'CLOSED') {
-            setConnectionStatus('disconnected')
-          } else {
-            setConnectionStatus('connecting')
-          }
-        })
 
-    } else {
-      // DEMO MODE - Setup local participant list
-      setParticipants([
-        { user_id: userId, name: userName, vote: selectedVote },
-        ...MOCK_TEAM.map(m => ({ ...m }))
-      ])
+          if (joinError) throw joinError
+
+          // 2. Fetch initial participants list
+          const { data: initialParts, error: fetchPartsError } = await supabase
+            .from('participants')
+            .select('*')
+            .eq('room_id', roomId)
+
+          if (fetchPartsError) throw fetchPartsError
+
+          if (initialParts) {
+            setParticipants(sortParticipants(initialParts as Participant[]))
+          }
+
+          // 3. Listen to database changes on rooms table
+          dbChannelRef.current = supabase
+            .channel(`room_db:${roomId}`)
+            .on(
+              'postgres_changes',
+              {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'rooms',
+                filter: `id=eq.${roomId}`
+              },
+              (payload) => {
+                const nextRoom = payload.new as Room
+                setRoomState(nextRoom)
+                
+                // If transitioned back to voting phase, reset local selectedVote state
+                if (!nextRoom.is_revealed) {
+                  setSelectedVote(null)
+                }
+              }
+            )
+            .subscribe()
+
+          // 4. Listen to changes on participants table
+          participantsChannelRef.current = supabase
+            .channel(`participants_db:${roomId}`)
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'participants',
+                filter: `room_id=eq.${roomId}`
+              },
+              (payload) => {
+                if (payload.eventType === 'INSERT') {
+                  setParticipants(prev => {
+                    const exists = prev.some(p => p.user_id === payload.new.user_id)
+                    if (exists) return prev
+                    return sortParticipants([...prev, payload.new as Participant])
+                  })
+                } else if (payload.eventType === 'UPDATE') {
+                  setParticipants(prev => 
+                    sortParticipants(
+                      prev.map(p => p.user_id === payload.new.user_id ? (payload.new as Participant) : p)
+                    )
+                  )
+                  // If database reset our vote to null, reset our local selectedVote state
+                  if (payload.new.user_id === userId && payload.new.vote === null) {
+                    setSelectedVote(null)
+                  }
+                } else if (payload.eventType === 'DELETE') {
+                  setParticipants(prev => 
+                    prev.filter(p => p.user_id !== payload.old.user_id)
+                  )
+                }
+              }
+            )
+            .subscribe((status) => {
+              if (status === 'SUBSCRIBED') {
+                setConnectionStatus('connected')
+              } else if (status === 'TIMED_OUT' || status === 'CLOSED') {
+                setConnectionStatus('disconnected')
+              }
+            })
+
+        } catch (err) {
+          console.error('Error connecting to Supabase database tables:', err)
+          setConnectionStatus('disconnected')
+        }
+      } else {
+        // DEMO MODE - Setup local participant list
+        setParticipants([
+          { user_id: userId, name: userName, vote: selectedVote },
+          ...MOCK_TEAM.map(m => ({ ...m }))
+        ])
+        setConnectionStatus('connected')
+      }
+    }
+
+    setupDatabaseListeners()
+
+    // 5. Clean up presence in DB when tab is closed (modern Keepalive beacons)
+    const handleUnload = () => {
+      if (isSupabaseConfigured) {
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/participants?id=eq.${roomId}:${userId}`
+        fetch(url, {
+          method: 'DELETE',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          keepalive: true
+        })
+      }
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload)
     }
   }, [userName, showNameModal, roomId])
 
-  // Helper to update vote state in Supabase Presence
-  const updatePresenceVote = async (vote: string | null) => {
-    if (isSupabaseConfigured && presenceChannelRef.current) {
-      await presenceChannelRef.current.track({
-        user_id: userId,
-        name: userName,
-        vote: vote,
-        online_at: new Date().toISOString()
-      })
-    }
+  // Helper to sort participants list (current user first, then alphabetically)
+  const sortParticipants = (list: Participant[]): Participant[] => {
+    return [...list].sort((a, b) => {
+      if (a.user_id === userId) return -1
+      if (b.user_id === userId) return 1
+      return a.name.localeCompare(b.name)
+    })
   }
 
   // Handle vote selection
@@ -247,13 +287,21 @@ export default function RoomView({
     )
 
     if (isSupabaseConfigured) {
-      await updatePresenceVote(nextVote)
+      try {
+        const { error } = await supabase
+          .from('participants')
+          .update({ vote: nextVote, updated_at: new Date().toISOString() })
+          .eq('id', `${roomId}:${userId}`)
+
+        if (error) throw error
+      } catch (err) {
+        console.error('Error saving vote to database:', err)
+      }
     } else {
-      // Simulate teammates voting in Demo Mode
+      // Demo Mode updates
       if (nextVote !== null) {
         simulateTeammateVotes()
       } else {
-        // If user retracted vote, reset simulated votes
         resetTeammateVotes()
       }
     }
@@ -261,25 +309,21 @@ export default function RoomView({
 
   // Demo Mode Simulation: Simulate other team members voting
   const simulateTeammateVotes = () => {
-    // Clear any existing timers
     demoTimersRef.current.forEach(timer => clearTimeout(timer))
     demoTimersRef.current = []
 
-    // Sarah votes after 1s
     const t1 = window.setTimeout(() => {
       setParticipants(prev => 
         prev.map(p => p.user_id === 'sarah-ux' ? { ...p, vote: getRandomVote() } : p)
       )
     }, 1000)
 
-    // Alex votes after 1.8s
     const t2 = window.setTimeout(() => {
       setParticipants(prev => 
         prev.map(p => p.user_id === 'alex-dev' ? { ...p, vote: getRandomVote() } : p)
       )
     }, 1800)
 
-    // Marcus votes after 2.5s
     const t3 = window.setTimeout(() => {
       setParticipants(prev => 
         prev.map(p => p.user_id === 'marcus-pm' ? { ...p, vote: getRandomVote() } : p)
@@ -298,10 +342,8 @@ export default function RoomView({
   }
 
   const getRandomVote = () => {
-    // Bias towards user's vote or fibonacci sequence
     const rand = Math.random()
-    if (selectedVote && rand > 0.4) return selectedVote // 60% chance to vote same as user for consensus!
-    
+    if (selectedVote && rand > 0.4) return selectedVote
     const options = ['3', '5', '8', '13', '?', '☕']
     return options[Math.floor(Math.random() * options.length)]
   }
@@ -312,7 +354,10 @@ export default function RoomView({
       try {
         const { error } = await supabase
           .from('rooms')
-          .update({ is_revealed: true })
+          .update({ 
+            is_revealed: true,
+            updated_at: new Date().toISOString()
+          })
           .eq('id', roomId)
 
         if (error) throw error
@@ -322,7 +367,6 @@ export default function RoomView({
     } else {
       // Demo Mode Reveal
       setRoomState(prev => prev ? { ...prev, is_revealed: true } : null)
-      // Force any teammates who haven't voted to vote quickly
       setParticipants(prev => 
         prev.map(p => p.vote === null ? { ...p, vote: getRandomVote() } : p)
       )
@@ -333,14 +377,28 @@ export default function RoomView({
   const handleNextRound = async () => {
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase
+        // 1. Reset rooms revealed status
+        const { error: roomResetError } = await supabase
           .from('rooms')
-          .update({ is_revealed: false })
+          .update({ 
+            is_revealed: false,
+            updated_at: new Date().toISOString()
+          })
           .eq('id', roomId)
 
-        if (error) throw error
+        if (roomResetError) throw roomResetError
+
+        // 2. Reset participants votes to null for this room
+        const { error: votesResetError } = await supabase
+          .from('participants')
+          .update({ vote: null, updated_at: new Date().toISOString() })
+          .eq('room_id', roomId)
+
+        if (votesResetError) throw votesResetError
+
+        setSelectedVote(null)
       } catch (err) {
-        console.error('Error resetting room:', err)
+        console.error('Error resetting room for next round:', err)
       }
     } else {
       // Demo Mode Reset
@@ -366,7 +424,20 @@ export default function RoomView({
     setShowNameModal(false)
   }
 
-
+  // Leave room logic
+  const handleLeaveRoom = async () => {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('participants')
+          .delete()
+          .eq('id', `${roomId}:${userId}`)
+      } catch (err) {
+        console.error('Error cleaning up participant row on exit:', err)
+      }
+    }
+    onLeave()
+  }
 
   // Statistics calculation
   const stats = calculateStats(participants)
@@ -379,7 +450,6 @@ export default function RoomView({
   }, [roomState?.is_revealed])
 
   const triggerConfetti = () => {
-    // Multi-shot confetti for satisfying celebration
     const duration = 2 * 1000
     const end = Date.now() + duration
 
@@ -417,7 +487,7 @@ export default function RoomView({
       <Header 
         roomId={roomId} 
         connectionStatus={connectionStatus} 
-        onLeave={onLeave} 
+        onLeave={handleLeaveRoom} 
         isDark={isDark}
         onToggleTheme={onToggleTheme}
       />
@@ -428,8 +498,6 @@ export default function RoomView({
         {/* Table & Stats Panel */}
         <div className="flex-1 flex flex-col items-center justify-center py-6 md:py-10">
           
-
-
           {/* Main Poker Table Container */}
           <div className="relative w-full max-w-3xl aspect-[2/1] rounded-[48px] border border-slate-200/60 dark:border-slate-800/80 bg-slate-100/30 dark:bg-slate-900/30 backdrop-blur-md flex flex-col items-center justify-center shadow-lg overflow-visible py-8">
             
@@ -483,12 +551,9 @@ export default function RoomView({
 
             {/* Render participants positioned around the table */}
             {participants.map((p, index) => {
-              // Calculate angular position around table
-              // Formula distributes users evenly around an oval
               const total = participants.length
-              const angle = (index / total) * 2 * Math.PI + Math.PI / 2 // offset by 90deg (top)
+              const angle = (index / total) * 2 * Math.PI + Math.PI / 2
               
-              // Map to coordinates (X radius 45%, Y radius 42% of table bounds)
               const x = 50 + 44 * Math.cos(angle)
               const y = 50 + 38 * Math.sin(angle)
 
@@ -597,7 +662,7 @@ export default function RoomView({
         <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-900/60 py-4 px-4 z-40">
           <div className="w-full flex flex-col items-center">
             
-            <div className="text-xs font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest mb-1.5 select-none">
+            <div className="text-xs font-bold text-slate-455 dark:text-slate-500 uppercase tracking-widest mb-1.5 select-none">
               {roomState?.is_revealed ? 'Estimate locked for this round' : 'Select your estimate'}
             </div>
 
@@ -619,7 +684,7 @@ export default function RoomView({
 
       </main>
 
-      {/* Name Input Intercept Modal (For users direct-joining via invite link) */}
+      {/* Name Input Modal */}
       {showNameModal && (
         <div className="fixed inset-0 bg-slate-900/65 dark:bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 z-99 animate-in fade-in duration-300">
           <div className="glass max-w-md w-full rounded-3xl p-6 md:p-8 border border-white/20 shadow-2xl animate-in zoom-in-95 duration-300">
