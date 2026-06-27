@@ -438,6 +438,33 @@ export default function RoomView({
         {/* Table & Stats Panel */}
         <div className="flex-1 flex flex-col items-center justify-center py-6 md:py-10">
           
+          {/* Copy Invite Link Action Button */}
+          <div className="mb-6 z-20">
+            <button
+              onClick={handleCopyLink}
+              className={`
+                px-5 py-3 rounded-2xl font-bold flex items-center gap-2 cursor-pointer shadow-md transition-all select-none text-sm md:text-base hover:scale-102
+                ${copiedLink 
+                  ? 'bg-emerald-600 text-white' 
+                  : 'bg-violet-600 hover:bg-violet-500 text-white hover:-translate-y-0.5'
+                }
+              `}
+              id="main-copy-invite-btn"
+            >
+              {copiedLink ? (
+                <>
+                  <Check className="w-4 h-4 md:w-5 md:h-5" />
+                  <span>Invite Link Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4 md:w-5 md:h-5" />
+                  <span>Copy Invite Link</span>
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Main Poker Table Container */}
           <div className="relative w-full max-w-3xl aspect-[2/1] rounded-[48px] border border-slate-200/60 dark:border-slate-800/80 bg-slate-100/30 dark:bg-slate-900/30 backdrop-blur-md flex flex-col items-center justify-center shadow-lg overflow-visible py-8">
             
@@ -543,31 +570,6 @@ export default function RoomView({
             })}
           </div>
 
-          {/* Quick invite block beneath table */}
-          <div className="mt-8 text-center sm:hidden">
-            <button
-              onClick={handleCopyLink}
-              className={`
-                px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow border
-                ${copiedLink 
-                  ? 'bg-violet-600 border-transparent text-white' 
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                }
-              `}
-            >
-              {copiedLink ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>Copied Invite Link</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-4 h-4" />
-                  <span>Share Invite Link</span>
-                </>
-              )}
-            </button>
-          </div>
         </div>
 
         {/* Global actions row (Reveal / Next Round) */}
