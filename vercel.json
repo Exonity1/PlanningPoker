@@ -1,8 +1,7 @@
 {
-  "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/((?!assets/|favicon.svg|icons.svg|main.tsx).*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]
