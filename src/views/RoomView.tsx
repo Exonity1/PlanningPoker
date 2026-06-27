@@ -244,14 +244,14 @@ export default function RoomView({
     const nextVote = selectedVote === value ? null : value
     setSelectedVote(nextVote)
 
+    // Snappy local state update so the UI reacts instantly (0ms latency)
+    setParticipants(prev => 
+      prev.map(p => p.user_id === userId ? { ...p, vote: nextVote } : p)
+    )
+
     if (isSupabaseConfigured) {
       await updatePresenceVote(nextVote)
     } else {
-      // Demo Mode updates
-      setParticipants(prev => 
-        prev.map(p => p.user_id === userId ? { ...p, vote: nextVote } : p)
-      )
-
       // Simulate teammates voting in Demo Mode
       if (nextVote !== null) {
         simulateTeammateVotes()
@@ -433,7 +433,7 @@ export default function RoomView({
       />
 
       {/* Main room board layout */}
-      <main className="flex-1 flex flex-col justify-between max-w-6xl w-full mx-auto p-4 md:p-6 pb-32">
+      <main className="flex-1 flex flex-col justify-between max-w-6xl w-full mx-auto p-4 md:p-6 pb-56">
         
         {/* Table & Stats Panel */}
         <div className="flex-1 flex flex-col items-center justify-center py-6 md:py-10">
@@ -577,13 +577,8 @@ export default function RoomView({
           {!roomState?.is_revealed ? (
             <button
               onClick={handleReveal}
-              disabled={stats.totalVoted === 0}
               className={`
-                px-6 py-3.5 rounded-2xl font-bold flex items-center gap-2 cursor-pointer shadow-lg transition-all duration-300
-                ${stats.totalVoted > 0
-                  ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-violet-200 dark:shadow-none scale-100 hover:scale-102'
-                  : 'bg-slate-200 dark:bg-slate-900 text-slate-400 dark:text-slate-655 cursor-not-allowed'
-                }
+                px-6 py-3.5 rounded-2xl font-bold flex items-center gap-2 cursor-pointer shadow-lg transition-all duration-300 bg-violet-600 hover:bg-violet-500 text-white shadow-violet-200 dark:shadow-none scale-100 hover:scale-102
                 ${allParticipantsVoted ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-slate-950 animate-pulse' : ''}
               `}
               id="reveal-cards-btn"
@@ -614,15 +609,15 @@ export default function RoomView({
         </div>
 
         {/* Bottom Panel: Voting Deck */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl border-t border-slate-100 dark:border-slate-900/60 py-4 px-4 z-40">
-          <div className="max-w-4xl mx-auto flex flex-col items-center">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-900/60 py-4 px-4 z-40">
+          <div className="w-full flex flex-col items-center">
             
-            <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2.5 select-none">
+            <div className="text-xs font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest mb-1.5 select-none">
               {roomState?.is_revealed ? 'Estimate locked for this round' : 'Select your estimate'}
             </div>
 
-            {/* Sliding deck of cards */}
-            <div className="flex gap-2.5 md:gap-3.5 max-w-full overflow-x-auto pb-2 px-4 no-scrollbar scroll-smooth">
+            {/* Sliding deck of cards - pt-6 prevents selected cards from clipping at the top */}
+            <div className="flex gap-2.5 md:gap-3.5 w-full justify-start md:justify-center overflow-x-auto pt-6 pb-4 px-4 custom-scrollbar scroll-smooth">
               {DECK_CARDS.map(val => (
                 <PokerCard
                   key={val}
