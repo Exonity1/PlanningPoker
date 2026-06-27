@@ -2,7 +2,7 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/room/:path*",
+      "source": "/((?!assets/|favicon.svg|icons.svg|main.tsx).*)",
       "destination": "/index.html"
     }
   ]
